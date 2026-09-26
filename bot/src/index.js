@@ -66,7 +66,13 @@ const app = express()
 app.use(cors({ origin: process.env.CORS_ORIGIN?.split(',').map((o) => o.trim()).filter(Boolean) || true }))
 app.use(express.json())
 
-const PORT = process.env.API_PORT || 3001
+// PaaS (Render/Railway/Fly) จะ inject PORT, ตอน dev ใช้ API_PORT
+const PORT = Number(process.env.PORT || process.env.API_PORT || 3001)
+
+// Root — ใช้เป็น health check ของ PaaS
+app.get('/', (_req, res) => {
+  res.json({ status: 'ok', service: 'botdash-bot', ready: client.isReady() })
+})
 
 // Health check
 app.get('/api/health', (_req, res) => {
@@ -127,7 +133,7 @@ app.get('/api/config', (_req, res) => {
   })
 })
 
-app.listen(PORT, () => {
+const server = app.listen(PORT, '0.0.0.0', () => {
   console.log(`🌐 API running on http://localhost:${PORT}`)
 })
 
@@ -140,4 +146,20 @@ if (!token) {
   client.login(token)
 }
 
-export { client, app }
+// ─── Graceful shutdown ────────────────────────────────────────
+// PaaS จะส่ง SIGTERM ก่อน restart — ปิด gateway + server ให้เรียบร้อย
+for (const signal of ['SIGTERM', 'SIGINT']) {
+  process.on(signal, async () => {
+    console.log(`\n${signal} received — shutting down...`)
+    server.close()
+    try {
+      await client.destroy()
+    } catch (err) {
+      console.error('destroy failed:', err.message)
+    }
+    process.exit(0)
+  })
+}
+
+export { client, app, server }
+

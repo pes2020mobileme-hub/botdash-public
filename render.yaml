@@ -1,0 +1,42 @@
+services:
+  # ─── บอท + Express API ───────────────────────────────────────
+  - type: web
+    name: botdash-bot
+    runtime: node
+    rootDir: bot
+    plan: free
+    region: singapore
+    buildCommand: npm ci --omit=dev
+    startCommand: npm start
+    # Render ยิง health check ทุกไม่กี่วินาที = inbound traffic ช่วยกัน spin down
+    healthCheckPath: /api/health
+    autoDeploy: true
+    envVars:
+      - key: DISCORD_TOKEN
+        sync: false # ← ตั้งค่าใน Render Dashboard
+      - key: CORS_ORIGIN
+        sync: false # ← ใส่ origin ของ dashboard เช่น https://xxx.vercel.app
+      - key: PREFIX
+        value: "!"
+      - key: STATUS
+        value: online
+      - key: ACTIVITY
+        value: Watching the dashboard
+      - key: OWNERS
+        sync: false
+
+  # ─── Dashboard (ทางเลืก — ถ้าไม่อยาก deploy แยกบน Vercel) ──────
+  - type: web
+    name: botdash-dashboard
+    runtime: static
+    rootDir: dashboard
+    buildCommand: npm ci && npm run build
+    staticPublishPath: ./dist
+    region: singapore
+    autoDeploy: true
+    envVars:
+      - key: VITE_API_URL
+        # เว้นว่างไว้ = dashboard จะเรียก /api ของตัวเอง (ใช้ได้ก็ต่อเมื่อ
+        # อยู่ domain เดียวกัน) — ถ้า dashboard อยู่คนละโดเมนกับบอท
+        # ต้องใส่ https://botdash-bot.onrender.com
+        sync: false

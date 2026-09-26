@@ -86,12 +86,54 @@ Dashboard จะรันที่ `http://localhost:5173`
 
 `/api/stats` และ `/api/servers` จะคืน `503 {"error":"Bot not ready"}` ถ้าบอทยังไม่ login
 
+## Deploy
+
+รองรับทุกเจ้า — config อยู่ที่ root ของ repo
+
+| เจ้า | ไฟล์ config | หมายเหตุ |
+|------|-------------|----------|
+| **Render** | `render.yaml` | Blueprint, มีทั้ง bot (web service) และ dashboard (static site) |
+| **Railway** | `railway.json` | Nixpacks build |
+| **Fly.io** | `fly.toml` + `Dockerfile` | ไม่ sleep, เหมาะกับบอทที่ต้องออนไลน์ตลอด |
+| **Vercel** | `dashboard/vercel.json` | deploy เฉพาะ dashboard (Vercel ไม่รองรับ WebSocket ยาว ๆ ของบอท) |
+| **Docker ทั่วไป** | `Dockerfile` | `docker build -t botdash-bot .` |
+
+### ขั้นตอน (Render)
+
+1. เข้า <https://dashboard.render.com> → **New → Blueprint**
+2. เลือก repo `botdash-public`
+3. Render จะอ่าน `render.yaml` แล้วสร้าง 2 services
+4. ตั้ง env vars ที่ขึ้น `sync: false`:
+   - `DISCORD_TOKEN` — **อย่า commit ลง git**
+   - `CORS_ORIGIN` — origin ของ dashboard เช่น `https://xxx.vercel.app`
+   - `VITE_API_URL` (ของ dashboard) — URL ของบอท เช่น `https://botdash-bot.onrender.com`
+5. เสร็จแล้ว bot จะได้ `DISCORD_TOKEN` และขึ้น Discord อัตโนมัติ
+
+### ⚠️ ข้อจำกัดของ Render Free
+
+[เอกสาร Render](https://render.com/docs/free) ระบุตรง ๆ ว่า free tier
+**"Do not use for production applications"**:
+
+- spin down เมื่อไม่มี inbound traffic 15 นาที (ตื่นใช้เวลา ~1 นาที)
+  `healthCheckPath: /api/health` ใน `render.yaml` ช่วยเป็นระยะ เพราะ health check
+  คือ inbound HTTP request แต่ยังไม่การันตี 100%
+- Render อาจ restart service ได้ตามการ — บอทจะ reconnect อัตโนมัติ (โค้ด login ครั้งเดียว
+  discord.js จัดการเอง)
+- มีโอกาสโดน suspend ถ้า outbound traffic สูงผิดปกติ
+- 750 instance hours/เดือน (หมดแล้ว service ทั้งหมดจะถูก suspend จนหมดเดือน)
+
+ถ้าต้องการให้บอทออนไลน์ตลอดแนะนำ **Fly.io** (`fly.toml` ตั้ง `min_machines_running = 1`)
+หรือ **Render Starter** หรือ **Railway**
+
+อีกทางคือใช้บริการ ping ภายนอก (UptimeRobot / cron-job.org) ยิง
+`https://<bot-url>/api/health` ทุก 10 นาที — ช่วยกัน spin down ได้เช่นกัน
+
 ## Dashboard → Bot API
 
 Dashboard อ่านค่า `VITE_API_URL` ตอน build:
 
 - **Dev** — เว้นว่างไว้ ใช้ proxy ของ Vite
-- **Production (Vercel)** — ต้องใส่ URL ของบอทที่ deploy ไว้ เช่น `https://bot-api.example.com`
+- **Production** — ต้องใส่ URL ของบอทที่ deploy ไว้ เช่น `https://botdash-bot.onrender.com`
   เพราะ proxy ของ Vite ไม่ทำงานหลัง build
 
 > ปุ่ม Save Changes / Restart Bot / Leave All Servers ในหน้า Settings ยังไม่ได้เชื่อม endpoint
@@ -103,6 +145,8 @@ Dashboard อ่านค่า `VITE_API_URL` ตอน build:
   ErrorState พร้อมปุ่มลองใหม่
 - Bot ยังเป็นโครงเปล่า มีตัวอย่าง command `/ping` และ event `ready`
 - WebSocket real-time จะเพิ่มภายหลังได้ตาม diagram
+- บอทอ่าน `PORT` (PaaS) หรือ `API_PORT` (dev) และปิด gateway แบบ graceful เมื่อได้ SIGTERM
+
 
 
 ## Tech Stack
