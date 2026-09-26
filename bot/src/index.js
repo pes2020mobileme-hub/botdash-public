@@ -1,11 +1,12 @@
 import 'dotenv/config'
-import { Client, GatewayIntentBits, Collection, Events } from 'discord.js'
+import { Client, GatewayIntentBits, Collection, Events, Routes } from 'discord.js'
 import express from 'express'
 import cors from 'cors'
 import { readdirSync } from 'fs'
 import { join, dirname } from 'path'
 import { fileURLToPath } from 'url'
 import config from './config/index.js'
+import { deployCommands, commandData } from './services/deployCommands.js'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 
@@ -54,9 +55,20 @@ try {
 }
 
 // Built-in ready event
-client.once(Events.ClientReady, (c) => {
+client.once(Events.ClientReady, async (c) => {
   console.log(`✅ Bot logged in as ${c.user.tag}`)
   console.log(`📊 Serving ${c.guilds.cache.size} servers`)
+
+  // Push slash commands to Discord — otherwise they exist in code only and
+  // never show up in the Discord UI. Set DEPLOY_COMMANDS=false to skip.
+  if (process.env.DEPLOY_COMMANDS !== 'false') {
+    try {
+      await deployCommands(c)
+    } catch (error) {
+      // A failed deploy must not take the bot offline
+      console.error('❌ Slash command deploy failed:', error.message)
+    }
+  }
 })
 
 // ─── Express API (for Dashboard) ──────────────────────────────
@@ -128,6 +140,48 @@ app.get('/api/servers', (_req, res) => {
     }))
     .sort((a, b) => b.members - a.members)
   res.json(servers)
+})
+
+// Slash commands currently registered on Discord
+app.get('/api/commands', async (_req, res) => {
+  if (!client.isReady()) {
+    return res.status(503).json({ error: 'Bot not ready' })
+  }
+
+  const toGuild = Boolean(process.env.GUILD_ID)
+  const route = toGuild
+    ? Routes.applicationGuildCommands(client.user.id, process.env.GUILD_ID)
+    : Routes.applicationCommands(client.user.id)
+
+  try {
+    const registered = await client.rest.get(route)
+    res.json({
+      scope: toGuild ? 'guild' : 'global',
+      registered: registered.map((c) => ({
+        name: c.name,
+        description: c.description,
+        type: c.type,
+      })),
+      local: commandData(client).map((c) => c.name),
+    })
+  } catch (error) {
+    res.status(500).json({ error: error.message })
+  }
+})
+
+// Deploy slash commands to Discord on demand
+app.post('/api/commands/deploy', async (_req, res) => {
+  if (!client.isReady()) {
+    return res.status(503).json({ error: 'Bot not ready' })
+  }
+
+  try {
+    const result = await deployCommands(client)
+    res.json({ success: true, ...result })
+  } catch (error) {
+    console.error('deploy failed:', error.message)
+    res.status(500).json({ success: false, error: error.message })
+  }
 })
 
 // Bot config (read-only — บอทอ่านค่าจาก .env ตอน start)

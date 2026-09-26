@@ -1,11 +1,12 @@
 const BASE = import.meta.env.VITE_API_URL ?? ''
 
-async function request(path, { timeout = 8000 } = {}) {
+async function request(path, { timeout = 8000, method = 'GET' } = {}) {
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), timeout)
 
   try {
     const res = await fetch(`${BASE}${path}`, {
+      method,
       signal: controller.signal,
       headers: { Accept: 'application/json' },
     })
@@ -26,6 +27,8 @@ export const api = {
   stats: () => request('/api/stats'),
   servers: () => request('/api/servers'),
   config: () => request('/api/config'),
+  commands: () => request('/api/commands'),
+  deployCommands: () => request('/api/commands/deploy', { method: 'POST' }),
 }
 
 export function formatUptime(seconds) {

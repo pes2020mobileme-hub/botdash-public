@@ -26,6 +26,11 @@ services:
         value: Watching the dashboard
       - key: OWNERS
         sync: false
+      - key: DEPLOY_COMMANDS
+        value: "true"
+      # ใส่ Guild ID เพื่อให้คำสั่ง slash ขึ้นทันทีแทนรอถึง 1 ชั่วโมง (global)
+      - key: GUILD_ID
+        sync: false
 
   # ─── Dashboard (ทางเลืก — ถ้าไม่อยาก deploy แยกบน Vercel) ──────
   - type: web
