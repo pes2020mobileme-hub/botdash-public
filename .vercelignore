@@ -1,0 +1,21 @@
+# บอทไม่ได้ deploy บน Vercel (ไม่รองรับ WebSocket ยาว ๆ) — ไม่ต้องอัปโหลด
+bot
+
+# config ของ host อื่น
+render.yaml
+railway.json
+fly.toml
+Dockerfile
+.dockerignore
+
+# เอกสาร
+README.md
+
+node_modules
+**/node_modules
+**/dist
+.env
+.env.local
+.env.*.local
+*.log
+.vercel
