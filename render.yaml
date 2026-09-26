@@ -1,5 +1,5 @@
 # ทุกอย่างรันใน service เดียว: Discord bot + REST API + หน้าเว็บ
-# Express เสิร์ฟทั้ง /api และ dashboard build จากโฟลเดอร์เดียวกัน
+# Express เสิร์ฟทั้ง /api และ dashboard build จาก origin เดียวกัน
 # จึงไม่ต้องมี CORS และไม่ต้องตั้ง VITE_API_URL
 services:
   - type: web
@@ -10,7 +10,7 @@ services:
     plan: free
     region: singapore
     healthCheckPath: /healthz
-    autoDeploy: true
+    autoDeployTrigger: commit
     envVars:
       - key: DISCORD_TOKEN
         sync: false # ← ตั้งค่าใน Render Dashboard (อย่า commit ลง git)
