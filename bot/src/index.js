@@ -63,8 +63,15 @@ client.once(Events.ClientReady, (c) => {
 const app = express()
 // เว้นว่าง = เปิดทุก origin (default) — ตั้ง CORS_ORIGIN เป็นโดเมน dashboard
 // คั่นด้วย comma ได้ เช่น https://my-app.vercel.app,https://my-app-git-main.vercel.app
-app.use(cors({ origin: process.env.CORS_ORIGIN?.split(',').map((o) => o.trim()).filter(Boolean) || true }))
+const corsOrigins = (process.env.CORS_ORIGIN ?? '')
+  .split(',')
+  .map((o) => o.trim())
+  .filter(Boolean)
+// ต้องเช็คความยาว ไม่ใช่ truthiness — [] ก็เป็นค่า truthiy
+// ถ้าไม่เช็คจะกลายเป็น allowlist ว่าง = ไม่มี origin ไหนผ่าน
+app.use(cors({ origin: corsOrigins.length ? corsOrigins : true }))
 app.use(express.json())
+
 
 // PaaS (Render/Railway/Fly) จะ inject PORT, ตอน dev ใช้ API_PORT
 const PORT = Number(process.env.PORT || process.env.API_PORT || 3001)
