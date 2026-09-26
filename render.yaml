@@ -13,9 +13,11 @@ services:
     autoDeploy: true
     envVars:
       - key: DISCORD_TOKEN
-        sync: false # ← ตั้งค่าใน Render Dashboard
+        sync: false # ← ตั้งค่าใน Render Dashboard (อย่า commit ลง git)
+      # ถ้า dashboard deploy บน Vercel ให้เปลี่ยนเป็น https://<project>.vercel.app
       - key: CORS_ORIGIN
-        sync: false # ← ใส่ origin ของ dashboard เช่น https://xxx.vercel.app
+        value: https://botdash-dashboard.onrender.com
+
       - key: PREFIX
         value: "!"
       - key: STATUS
@@ -36,7 +38,7 @@ services:
     autoDeploy: true
     envVars:
       - key: VITE_API_URL
-        # เว้นว่างไว้ = dashboard จะเรียก /api ของตัวเอง (ใช้ได้ก็ต่อเมื่อ
-        # อยู่ domain เดียวกัน) — ถ้า dashboard อยู่คนละโดเมนกับบอท
-        # ต้องใส่ https://botdash-bot.onrender.com
-        sync: false
+        # URL ของบอท — ชื่อ service ถูกตั้งไว้ข้างบนแล้ว ตัวนี้เลยเป็นค่า default ที่ถูก
+        # ถ้าตั้งชื่อ service ต่างจากนี้ ต้องแก้ให้ตรงกัน
+        value: https://botdash-bot.onrender.com
+
