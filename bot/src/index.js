@@ -539,38 +539,30 @@ app.post(
     }
   }),
 )
-
-// ─── Dashboard (static) ───────────────────────────────────────
-// One service: this process serves both the REST API and the built React app.
-// Same origin means no CORS and no VITE_API_URL to configure.
+// ─── Dashboard (static, optional) ─────────────────────────────
+// โดยปกติหน้าเว็บ deploy แยกบน Vercel แล้วคุยกับที่นี่ผ่าน CORS
+// ถ้าตั้ง SERVE_DASHBOARD=true (หรือพบ dashboard/dist) process นี้จะเสิร์ฟ
+// หน้าเว็บเองด้วย — ทำได้เมื่ออยากรวมเป็นตัวเดียวชั่วคราว
+const SERVE_DASHBOARD = process.env.SERVE_DASHBOARD === 'true'
 const DASHBOARD_DIST = process.env.DASHBOARD_DIST
   ? join(process.env.DASHBOARD_DIST)
   : join(__dirname, '..', '..', 'dashboard', 'dist')
 
-const hasDashboard = existsSync(join(DASHBOARD_DIST, 'index.html'))
+const hasDashboard = SERVE_DASHBOARD && existsSync(join(DASHBOARD_DIST, 'index.html'))
 
 if (hasDashboard) {
   app.use(express.static(DASHBOARD_DIST, { index: false, maxAge: '1h' }))
 
   // SPA fallback — React Router owns every non-API path
-  app.get(/^\/(?!api\/).*/, (_req, res) => {
+  app.get(/^\/(?!api\/|healthz).*/, (_req, res) => {
     res.sendFile(join(DASHBOARD_DIST, 'index.html'))
   })
 
   logger.info(`เสิร์ฟ dashboard จาก ${DASHBOARD_DIST}`)
-} else {
-  app.get('/', (_req, res) => {
-    res.json({
-      status: 'ok',
-      service: 'botdash',
-      ready: client.isReady(),
-      dashboard: 'ยังไม่ได้ build — รัน: cd dashboard && npm run build',
-    })
-  })
-  logger.warn(`ไม่พบ dashboard build ที่ ${DASHBOARD_DIST} — เสิร์ฟเฉพาะ API`)
 }
+
 const server = app.listen(PORT, '0.0.0.0', () => {
-  logger.info(`รันที่ http://localhost:${PORT}`)
+  logger.info(`รันที่ http://localhost:${PORT} (API)`)
 })
 
 // ─── Login ────────────────────────────────────────────────────

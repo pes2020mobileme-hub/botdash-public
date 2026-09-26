@@ -1,6 +1,9 @@
-# ทุกอย่างรันใน service เดียว: Discord bot + REST API + หน้าเว็บ
-# Express เสิร์ฟทั้ง /api และ dashboard build จาก origin เดียวกัน
-# จึงไม่ต้องมี CORS และไม่ต้องตั้ง VITE_API_URL
+# โปรเจกต์นี้ deploy แยก 2 ที่:
+#   bot       → Render  (REST API + Discord gateway)
+#   dashboard → Vercel  (React build, คุยกับ Render ผ่าน CORS)
+#
+# ถ้าอยากรวมเป็นตัวเดียว: ตั้ง SERVE_DASHBOARD=true แล้วใช้ Dockerfile
+# (stage 1 จะ build dashboard แล้ว copy เข้า image)
 services:
   - type: web
     name: botdash
@@ -16,6 +19,9 @@ services:
         sync: false # ← ตั้งค่าใน Render Dashboard (อย่า commit ลง git)
       - key: DASHBOARD_TOKEN
         sync: false # ← สร้างด้วย: cd bot && npm run token
+      # ต้องเป็น origin ของ dashboard บน Vercel ไม่งั้น browser จะบล็อก CORS
+      - key: CORS_ORIGIN
+        value: https://botdash.vercel.app
       - key: DEPLOY_COMMANDS
         value: "true"
       # ใส่ Guild ID เพื่อให้ slash command ขึ้นทันทีแทนรอถึง 1 ชั่วโมง
