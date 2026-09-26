@@ -14,9 +14,12 @@ services:
     envVars:
       - key: DISCORD_TOKEN
         sync: false # ← ตั้งค่าใน Render Dashboard (อย่า commit ลง git)
+      # สร้างด้วย: cd bot && npm run token
+      - key: DASHBOARD_TOKEN
+        sync: false
       # ถ้า dashboard deploy บน Vercel ให้เปลี่ยนเป็น https://<project>.vercel.app
       - key: CORS_ORIGIN
-        value: https://botdash-dashboard.onrender.com
+        value: https://botdash.vercel.app
 
       - key: PREFIX
         value: "!"

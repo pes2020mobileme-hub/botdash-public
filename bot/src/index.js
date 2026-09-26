@@ -7,6 +7,8 @@ import { join, dirname } from 'path'
 import { fileURLToPath } from 'url'
 import config from './config/index.js'
 import { deployCommands, commandData } from './services/deployCommands.js'
+import { requireAuth, authEnabled, extractToken, isValidToken, generateToken } from './middleware/auth.js'
+import { logger, logStream } from './services/logger.js'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 
@@ -56,17 +58,22 @@ try {
 
 // Built-in ready event
 client.once(Events.ClientReady, async (c) => {
-  console.log(`✅ Bot logged in as ${c.user.tag}`)
-  console.log(`📊 Serving ${c.guilds.cache.size} servers`)
+  logger.success(`บอทออนไลน์แล้ว — ${c.user.tag}`)
+  logger.info(`อยู่ใน ${c.guilds.cache.size} เซิร์ฟเวอร์`)
+
+  if (!authEnabled()) {
+    logger.warn('DASHBOARD_TOKEN ไม่ได้ตั้ง — API เปิดให้ทุกคนเรียกได้ (ตั้งค่าเพื่อป้องกัน)')
+  }
 
   // Push slash commands to Discord — otherwise they exist in code only and
   // never show up in the Discord UI. Set DEPLOY_COMMANDS=false to skip.
   if (process.env.DEPLOY_COMMANDS !== 'false') {
     try {
-      await deployCommands(c)
+      const result = await deployCommands(c)
+      logger.success(`deploy slash commands แล้ว ${result.count} คำสั่ง (${result.scope})`)
     } catch (error) {
       // A failed deploy must not take the bot offline
-      console.error('❌ Slash command deploy failed:', error.message)
+      logger.error(`deploy slash commands ไม่สำเร็จ: ${error.message}`)
     }
   }
 })
@@ -83,6 +90,26 @@ const corsOrigins = (process.env.CORS_ORIGIN ?? '')
 // ถ้าไม่เช็คจะกลายเป็น allowlist ว่าง = ไม่มี origin ไหนผ่าน
 app.use(cors({ origin: corsOrigins.length ? corsOrigins : true }))
 app.use(express.json())
+
+// ─── Auth ─────────────────────────────────────────────────────
+// Everything under /api needs a bearer token except the two public auth routes.
+// SSE clients (EventSource) cannot set headers, so ?token= is also accepted.
+app.use('/api', requireAuth)
+
+app.get('/api/auth/status', (_req, res) => {
+  res.json({ required: authEnabled() })
+})
+
+app.post('/api/auth/verify', (req, res) => {
+  const token = extractToken(req)
+  if (!isValidToken(token)) {
+    return res.status(401).json({ success: false, error: 'Token ไม่ถูกต้อง' })
+  }
+  res.json({ success: true, required: authEnabled() })
+})
+
+// ─── Log stream ───────────────────────────────────────────────
+app.get('/api/logs', logStream)
 
 
 // PaaS (Render/Railway/Fly) จะ inject PORT, ตอน dev ใช้ API_PORT
@@ -201,26 +228,54 @@ const server = app.listen(PORT, '0.0.0.0', () => {
 // ─── Login ────────────────────────────────────────────────────
 const token = process.env.DISCORD_TOKEN
 if (!token) {
-  console.warn('⚠️  DISCORD_TOKEN not set — bot will not connect. API still available.')
-  console.warn('   Create a .env file with DISCORD_TOKEN=your_token')
+  logger.warn('DISCORD_TOKEN ไม่ได้ตั้ง — บอทจะไม่เชื่อมต่อ แต่ API ยังใช้ได้')
+  logger.warn('สร้างไฟล์ .env แล้วใส่ DISCORD_TOKEN=<token ของคุณ>')
 } else {
-  client.login(token)
+  client.login(token).catch((error) => {
+    logger.error(`login ไม่สำเร็จ: ${error.message}`)
+  })
+}
+
+// ─── Restart (ใช้จากปุ่มใน dashboard) ──────────────────────────
+// ปิด gateway แล้ว login ใหม่ โดยไม่ต้องรีสตาร์ท process
+let restarting = false
+async function restartBot() {
+  if (restarting) throw new Error('กำลัง restart อยู่')
+  restarting = true
+
+  try {
+    logger.warn('กำลัง restart บอท...')
+    await client.destroy()
+    await client.login(token)
+    logger.success('restart บอทสำเร็จ')
+  } finally {
+    restarting = false
+  }
 }
 
 // ─── Graceful shutdown ────────────────────────────────────────
 // PaaS จะส่ง SIGTERM ก่อน restart — ปิด gateway + server ให้เรียบร้อย
 for (const signal of ['SIGTERM', 'SIGINT']) {
   process.on(signal, async () => {
-    console.log(`\n${signal} received — shutting down...`)
+    logger.info(`${signal} received — กำลังปิด...`)
     server.close()
     try {
       await client.destroy()
-    } catch (err) {
-      console.error('destroy failed:', err.message)
+    } catch (error) {
+      logger.error(`destroy ไม่สำเร็จ: ${error.message}`)
     }
     process.exit(0)
   })
 }
 
-export { client, app, server }
+process.on('unhandledRejection', (reason) => {
+  logger.error(`unhandled rejection: ${reason?.message ?? reason}`)
+})
+
+// ─── Guild events → log stream ────────────────────────────────
+client.on(Events.GuildCreate, (guild) => logger.info(`เข้าเซิร์ฟเวอร์ใหม่: ${guild.name} (${guild.id})`))
+client.on(Events.GuildDelete, (guild) => logger.warn(`ออกจากเซิร์ฟเวอร์: ${guild.name} (${guild.id})`))
+client.on(Events.Error, (error) => logger.error(`discord client error: ${error.message}`))
+
+export { client, app, server, restartBot, config }
 
