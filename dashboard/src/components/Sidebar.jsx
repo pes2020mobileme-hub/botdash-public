@@ -1,5 +1,5 @@
 import { NavLink } from 'react-router-dom'
-import { LayoutDashboard, Server, Settings, Bot } from 'lucide-react'
+import { LayoutDashboard, Server, Settings, Bot, LogOut } from 'lucide-react'
 import { api } from '../lib/api'
 import { useApi } from '../lib/useApi'
 
@@ -9,7 +9,7 @@ const navItems = [
   { to: '/settings', icon: Settings, label: 'Settings' },
 ]
 
-export default function Sidebar() {
+export default function Sidebar({ onLogout }) {
   const { data, loading } = useApi(() => api.health(), [], 10000)
   const online = Boolean(data?.ready)
 
@@ -44,7 +44,19 @@ export default function Sidebar() {
           className={`status-dot ${loading ? 'idle' : online ? 'online' : 'offline'}`}
           aria-hidden="true"
         />
-        <span>{loading ? 'Checking...' : online ? 'Bot Online' : 'Bot Offline'}</span>
+        <span style={{ flex: 1 }}>
+          {loading ? 'Checking...' : online ? 'Bot Online' : 'Bot Offline'}
+        </span>
+        {onLogout && (
+          <button
+            className="icon-btn"
+            style={{ width: 32, height: 32 }}
+            onClick={onLogout}
+            title="ออกจากระบบ"
+          >
+            <LogOut size={15} />
+          </button>
+        )}
       </div>
     </aside>
   )

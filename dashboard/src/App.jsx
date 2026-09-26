@@ -1,9 +1,11 @@
 import { Routes, Route, useLocation } from 'react-router-dom'
+import { AuthProvider, useAuth } from './lib/auth'
 import Sidebar from './components/Sidebar'
 import Navbar from './components/Navbar'
 import Dashboard from './pages/Dashboard'
 import Servers from './pages/Servers'
 import Settings from './pages/Settings'
+import Login from './pages/Login'
 
 const pageTitles = {
   '/': 'Dashboard',
@@ -11,13 +13,26 @@ const pageTitles = {
   '/settings': 'Settings',
 }
 
-export default function App() {
+function Shell() {
+  const { state, logout } = useAuth()
   const location = useLocation()
   const title = pageTitles[location.pathname] || 'Dashboard'
 
+  if (state === 'loading') {
+    return (
+      <div style={{ minHeight: '100vh', display: 'grid', placeItems: 'center' }}>
+        <div className="skeleton" style={{ width: 180, height: 14 }} />
+      </div>
+    )
+  }
+
+  if (state === 'guest') {
+    return <Login />
+  }
+
   return (
     <div className="app-layout">
-      <Sidebar />
+      <Sidebar onLogout={logout} />
       <div className="main-content">
         <Navbar title={title} />
         <main className="page-content">
@@ -29,5 +44,13 @@ export default function App() {
         </main>
       </div>
     </div>
+  )
+}
+
+export default function App() {
+  return (
+    <AuthProvider>
+      <Shell />
+    </AuthProvider>
   )
 }

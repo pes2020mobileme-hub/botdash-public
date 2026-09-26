@@ -1,6 +1,7 @@
 import { Server, Users, Hash, Activity } from 'lucide-react'
 import StatCard from '../components/StatCard'
 import ErrorState from '../components/ErrorState'
+import LogViewer from '../components/LogViewer'
 import { api, formatUptime } from '../lib/api'
 import { useApi } from '../lib/useApi'
 
@@ -94,6 +95,10 @@ export default function Dashboard() {
           <h3 className="card-title">Servers — Top 5 สมาชิกเยอะสุด</h3>
           <TopServers />
         </div>
+      </div>
+
+      <div style={{ marginTop: 20 }}>
+        <LogViewer />
       </div>
     </div>
   )
