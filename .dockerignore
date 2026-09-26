@@ -1,5 +1,6 @@
-# Runtime image only ships bot/ and the built dashboard, so nothing here
-# should be sent to the daemon.
+# Everything the image needs: bot/ and the dashboard SOURCE (the Dockerfile
+# builds it in stage 1). Excluding dashboard/ here would break `COPY
+# dashboard/ ./` and the build would fail with "not found".
 .git
 .gitignore
 node_modules
@@ -8,14 +9,15 @@ node_modules
 **/build
 .vercel
 
+# runtime state — written by the bot, rebuilt on every deploy
+bot/data
+
 .env
 .env.local
 .env.*.local
 *.log
 
-# the dashboard is built inside the image, never copied from the host
-dashboard
-
+# host configs and docs are not needed inside the image
 README.md
 render.yaml
 railway.json
