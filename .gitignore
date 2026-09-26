@@ -3,6 +3,9 @@ dist/
 build/
 .vercel/
 
+# runtime data — contains dashboard-saved settings and custom templates
+bot/data/
+
 .env
 .env.local
 .env.*.local

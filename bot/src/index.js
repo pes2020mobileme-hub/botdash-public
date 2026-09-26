@@ -1,16 +1,46 @@
 import 'dotenv/config'
+import { readFile, writeFile, mkdir } from 'node:fs/promises'
+import { existsSync } from 'node:fs'
+import { randomUUID } from 'node:crypto'
+import { join, dirname } from 'path'
+import { fileURLToPath } from 'url'
 import { Client, GatewayIntentBits, Collection, Events, Routes } from 'discord.js'
 import express from 'express'
 import cors from 'cors'
 import { readdirSync } from 'fs'
-import { join, dirname } from 'path'
-import { fileURLToPath } from 'url'
 import config from './config/index.js'
 import { deployCommands, commandData } from './services/deployCommands.js'
-import { requireAuth, authEnabled, extractToken, isValidToken, generateToken } from './middleware/auth.js'
+import { requireAuth, authEnabled, extractToken, isValidToken } from './middleware/auth.js'
 import { logger, logStream } from './services/logger.js'
+import {
+  resolveGuild,
+  guildStructure,
+  botPermissions,
+  createChannel,
+  createRole,
+  deleteChannels,
+  deleteRoles,
+  applyTemplate,
+} from './services/builder.js'
+import { TEMPLATES, getTemplate } from './services/templates.js'
+import { saveConfig, applyConfig, getConfig, loadConfig } from './config/persist.js'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
+const DATA_DIR = join(__dirname, '..', 'data')
+const TEMPLATES_FILE = join(DATA_DIR, 'custom_templates.json')
+const CONFIG_FILE = join(DATA_DIR, 'config.json')
+
+async function loadCustomTemplates() {
+  if (!existsSync(TEMPLATES_FILE)) return []
+  try {
+    const data = JSON.parse(await readFile(TEMPLATES_FILE, 'utf8'))
+    return Array.isArray(data) ? data : []
+  } catch (error) {
+    logger.error(`อ่าน custom_templates.json ไม่สำเร็จ: ${error.message}`)
+    return []
+  }
+}
+
 
 // ─── Discord Client ───────────────────────────────────────────
 const client = new Client({
@@ -58,6 +88,9 @@ try {
 
 // Built-in ready event
 client.once(Events.ClientReady, async (c) => {
+  // data/config.json overrides win over .env
+  await applyConfig(c)
+
   logger.success(`บอทออนไลน์แล้ว — ${c.user.tag}`)
   logger.info(`อยู่ใน ${c.guilds.cache.size} เซิร์ฟเวอร์`)
 
@@ -211,21 +244,308 @@ app.post('/api/commands/deploy', async (_req, res) => {
   }
 })
 
-// Bot config (read-only — บอทอ่านค่าจาก .env ตอน start)
+// Bot config — env values merged with any dashboard overrides
 app.get('/api/config', (_req, res) => {
   res.json({
-    prefix: config.prefix,
-    status: config.status,
-    activity: config.activity,
-    owners: config.owners,
+    prefix: getConfig().prefix,
+    status: getConfig().status,
+    activity: getConfig().activity,
+    owners: getConfig().owners,
   })
 })
 
+// ─── Server Builder ───────────────────────────────────────────
+
+/** Wraps an async route so thrown errors become clean JSON responses. */
+function guard(handler) {
+  return async (req, res) => {
+    try {
+      await handler(req, res)
+    } catch (error) {
+      const status = error.status ?? 500
+      if (status >= 500) logger.error(`${req.method} ${req.path} — ${error.message}`)
+      res.status(status).json({ success: false, error: error.message })
+    }
+  }
+}
+
+function requireReady(res) {
+  if (client.isReady()) return true
+  res.status(503).json({ error: 'Bot not ready' })
+  return false
+}
+
+function guildIdFrom(req) {
+  return req.params.guildId ?? req.body?.guild_id
+}
+
+// Full structure: categories, channels, roles + bot permissions
+app.get(
+  '/api/guilds/:guildId/structure',
+  guard(async (req, res) => {
+    if (!requireReady(res)) return
+    const guild = resolveGuild(client, guildIdFrom(req))
+    res.json(guildStructure(guild))
+  }),
+)
+
+// Create one channel
+app.post(
+  '/api/guilds/:guildId/channels',
+  guard(async (req, res) => {
+    if (!requireReady(res)) return
+    const guild = resolveGuild(client, guildIdFrom(req))
+
+    const created = await createChannel(guild, req.body ?? {})
+    logger.success(`สร้างห้อง ${created.name} ใน ${guild.name}`)
+    res.json({ success: true, channel: created })
+  }),
+)
+
+// Create one role
+app.post(
+  '/api/guilds/:guildId/roles',
+  guard(async (req, res) => {
+    if (!requireReady(res)) return
+    const guild = resolveGuild(client, guildIdFrom(req))
+
+    const created = await createRole(guild, req.body ?? {})
+    logger.success(`สร้างโรล ${created.name} ใน ${guild.name}`)
+    res.json({ success: true, role: created })
+  }),
+)
+
+// Delete channels in bulk — partial success is reported per id
+app.post(
+  '/api/guilds/:guildId/channels/delete',
+  guard(async (req, res) => {
+    if (!requireReady(res)) return
+    const guild = resolveGuild(client, guildIdFrom(req))
+
+    const ids = req.body?.ids
+    if (!Array.isArray(ids) || ids.length === 0) {
+      return res.status(400).json({ success: false, error: 'ต้องส่ง ids เป็น array' })
+    }
+
+    logger.warn(`กำลังลบ ${ids.length} ห้องจาก ${guild.name}...`)
+    const result = await deleteChannels(guild, ids)
+    logger.success(`ลบห้องสำเร็จ ${result.deleted.length}/${ids.length}`)
+
+    res.json({ success: true, ...result })
+  }),
+)
+
+app.post(
+  '/api/guilds/:guildId/roles/delete',
+  guard(async (req, res) => {
+    if (!requireReady(res)) return
+    const guild = resolveGuild(client, guildIdFrom(req))
+
+    const ids = req.body?.ids
+    if (!Array.isArray(ids) || ids.length === 0) {
+      return res.status(400).json({ success: false, error: 'ต้องส่ง ids เป็น array' })
+    }
+
+    const result = await deleteRoles(guild, ids)
+    logger.success(`ลบโรลสำเร็จ ${result.deleted.length}/${ids.length}`)
+    res.json({ success: true, ...result })
+  }),
+)
+
+// Built-in + custom templates
+app.get(
+  '/api/templates',
+  guard(async (_req, res) => {
+    res.json({ templates: [...TEMPLATES, ...(await loadCustomTemplates())] })
+  }),
+)
+
+app.get(
+  '/api/templates/:id',
+  guard(async (req, res) => {
+    const custom = await loadCustomTemplates()
+    const found = getTemplate(req.params.id) ?? custom.find((t) => t.id === req.params.id)
+
+    if (!found) return res.status(404).json({ error: 'ไม่พบ template นี้' })
+    res.json(found)
+  }),
+)
+
+app.post(
+  '/api/templates',
+  guard(async (req, res) => {
+    const name = String(req.body?.name ?? '').trim()
+    const categories = req.body?.categories
+
+    if (!name) return res.status(400).json({ success: false, error: 'ต้องตั้งชื่อ template' })
+    if (!Array.isArray(categories) || categories.length === 0) {
+      return res.status(400).json({ success: false, error: 'template ต้องมีอย่างน้อย 1 หมวดหมู่' })
+    }
+
+    const id = `custom_${randomUUID().slice(0, 8)}`
+    const custom = await loadCustomTemplates()
+    custom.push({
+      id,
+      name,
+      description: String(req.body?.description ?? 'สร้างเอง'),
+      roles: Array.isArray(req.body?.roles) ? req.body.roles : [],
+      categories,
+    })
+
+    try {
+      await mkdir(DATA_DIR, { recursive: true })
+      await writeFile(TEMPLATES_FILE, JSON.stringify(custom, null, 2), 'utf8')
+    } catch (error) {
+      return res.status(500).json({ success: false, error: `บันทึกไฟล์ไม่สำเร็จ: ${error.message}` })
+    }
+
+    logger.success(`บันทึก template "${name}"`)
+    res.json({ success: true, id })
+  }),
+)
+
+app.delete(
+  '/api/templates/:id',
+  guard(async (req, res) => {
+    const custom = await loadCustomTemplates()
+    const remaining = custom.filter((t) => t.id !== req.params.id)
+
+    if (remaining.length === custom.length) {
+      return res.status(404).json({ success: false, error: 'ลบได้เฉพาะ template ที่สร้างเอง' })
+    }
+
+    await mkdir(DATA_DIR, { recursive: true })
+    await writeFile(TEMPLATES_FILE, JSON.stringify(remaining, null, 2), 'utf8')
+    logger.success(`ลบ template ${req.params.id}`)
+    res.json({ success: true })
+  }),
+)
+
+// Apply a template to a guild — the long one, Discord rate limits it hard
+app.post(
+  '/api/guilds/:guildId/apply',
+  guard(async (req, res) => {
+    if (!requireReady(res)) return
+    const guild = resolveGuild(client, guildIdFrom(req))
+
+    const templateId = req.body?.template_id
+    const custom = templateId ? await loadCustomTemplates() : []
+    const template = templateId
+      ? (getTemplate(templateId) ?? custom.find((t) => t.id === templateId))
+      : req.body?.template
+
+    if (!template) {
+      return res.status(404).json({ success: false, error: 'ไม่พบ template นี้' })
+    }
+
+    const perms = botPermissions(guild)
+    if (perms && !perms.administrator && !perms.manageChannels) {
+      return res.status(403).json({
+        success: false,
+        error: 'บอทไม่มีสิทธิ์ Manage Channels ในเซิร์ฟเวอร์นี้',
+      })
+    }
+
+    logger.info(`กำลังสร้างโครงสร้าง "${template.name}" ใน ${guild.name}...`)
+
+    const report = await applyTemplate(guild, template, (step) => logger.info(step))
+
+    logger.success(
+      `เสร็จแล้ว: หมวดหมู่ ${report.categories.length}, ห้อง ${report.channels.length}, โรล ${report.roles.length}, พัง ${report.failed.length}`,
+    )
+
+    res.json({ success: true, template: template.name, ...report })
+  }),
+)
+
+// ─── Bot controls ─────────────────────────────────────────────
+
+app.post(
+  '/api/bot/restart',
+  guard(async (_req, res) => {
+    if (!requireReady(res)) return
+    await restartBot()
+    res.json({ success: true, message: 'restart บอทแล้ว' })
+  }),
+)
+
+app.post(
+  '/api/bot/leave-all',
+  guard(async (req, res) => {
+    if (!requireReady(res)) return
+    if (req.body?.confirm !== 'LEAVE_ALL') {
+      return res.status(400).json({
+        success: false,
+        error: 'ต้องส่ง confirm: "LEAVE_ALL" เพื่อยืนยัน (การกระทำนี้ย้อนกลับไม่ได้)',
+      })
+    }
+
+    const guilds = [...client.guilds.cache.values()]
+    logger.warn(`กำลังออกจากทุกเซิร์ฟเวอร์ (${guilds.length} เซิร์ฟเวอร์)...`)
+
+    const result = { left: [], failed: [] }
+    for (const guild of guilds) {
+      try {
+        await guild.leave()
+        result.left.push({ id: guild.id, name: guild.name })
+      } catch (error) {
+        result.failed.push({ id: guild.id, name: guild.name, error: error.message })
+      }
+    }
+
+    logger.success(`ออกจาก ${result.left.length}/${guilds.length} เซิร์ฟเวอร์`)
+    res.json({ success: true, ...result })
+  }),
+)
+
+// Persist editable settings to a JSON file the config module reads at startup
+app.post(
+  '/api/config',
+  guard(async (req, res) => {
+    const patch = {}
+
+    if (typeof req.body?.prefix === 'string') {
+      const prefix = req.body.prefix.trim()
+      if (!prefix) return res.status(400).json({ success: false, error: 'prefix ห้ามว่าง' })
+      if (prefix.length > 5) return res.status(400).json({ success: false, error: 'prefix ยาวเกิน 5 ตัว' })
+      patch.prefix = prefix
+    }
+
+    const statuses = ['online', 'idle', 'dnd', 'invisible']
+    if (req.body?.status !== undefined) {
+      if (!statuses.includes(req.body.status)) {
+        return res.status(400).json({ success: false, error: `status ต้องเป็น ${statuses.join(', ')}` })
+      }
+      patch.status = req.body.status
+    }
+
+    if (typeof req.body?.activity === 'string') {
+      const activity = req.body.activity.trim().slice(0, 128)
+      if (!activity) return res.status(400).json({ success: false, error: 'activity ห้ามว่าง' })
+      patch.activity = activity
+    }
+
+    if (Object.keys(patch).length === 0) {
+      return res.status(400).json({ success: false, error: 'ไม่มีค่าที่จะบันทึก' })
+    }
+
+    try {
+      await saveConfig(patch)
+      await applyConfig(client)
+      logger.info(`อัปเดต config: ${JSON.stringify(patch)}`)
+      res.json({ success: true, config: getConfig() })
+    } catch (error) {
+      res.status(500).json({ success: false, error: error.message })
+    }
+  }),
+)
+
 const server = app.listen(PORT, '0.0.0.0', () => {
-  console.log(`🌐 API running on http://localhost:${PORT}`)
+  logger.info(`API รันที่ http://localhost:${PORT}`)
 })
 
 // ─── Login ────────────────────────────────────────────────────
+await loadConfig()
 const token = process.env.DISCORD_TOKEN
 if (!token) {
   logger.warn('DISCORD_TOKEN ไม่ได้ตั้ง — บอทจะไม่เชื่อมต่อ แต่ API ยังใช้ได้')
