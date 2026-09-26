@@ -4,12 +4,14 @@ import Sidebar from './components/Sidebar'
 import Navbar from './components/Navbar'
 import Dashboard from './pages/Dashboard'
 import Servers from './pages/Servers'
+import Builder from './pages/Builder'
 import Settings from './pages/Settings'
 import Login from './pages/Login'
 
 const pageTitles = {
   '/': 'Dashboard',
   '/servers': 'Servers',
+  '/builder': 'Builder',
   '/settings': 'Settings',
 }
 
@@ -39,6 +41,7 @@ function Shell() {
           <Routes>
             <Route path="/" element={<Dashboard />} />
             <Route path="/servers" element={<Servers />} />
+            <Route path="/builder" element={<Builder />} />
             <Route path="/settings" element={<Settings />} />
           </Routes>
         </main>

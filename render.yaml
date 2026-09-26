@@ -1,26 +1,26 @@
+# ทุกอย่างรันใน service เดียว: Discord bot + REST API + หน้าเว็บ
+# Express เสิร์ฟทั้ง /api และ dashboard build จากโฟลเดอร์เดียวกัน
+# จึงไม่ต้องมี CORS และไม่ต้องตั้ง VITE_API_URL
 services:
-  # ─── บอท + Express API ───────────────────────────────────────
   - type: web
-    name: botdash-bot
-    runtime: node
-    rootDir: bot
+    name: botdash
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
     plan: free
     region: singapore
-    buildCommand: npm ci --omit=dev
-    startCommand: npm start
-    # Render ยิง health check ทุกไม่กี่วินาที = inbound traffic ช่วยกัน spin down
-    healthCheckPath: /api/health
+    healthCheckPath: /healthz
     autoDeploy: true
     envVars:
       - key: DISCORD_TOKEN
         sync: false # ← ตั้งค่าใน Render Dashboard (อย่า commit ลง git)
-      # สร้างด้วย: cd bot && npm run token
       - key: DASHBOARD_TOKEN
+        sync: false # ← สร้างด้วย: cd bot && npm run token
+      - key: DEPLOY_COMMANDS
+        value: "true"
+      # ใส่ Guild ID เพื่อให้ slash command ขึ้นทันทีแทนรอถึง 1 ชั่วโมง
+      - key: GUILD_ID
         sync: false
-      # ถ้า dashboard deploy บน Vercel ให้เปลี่ยนเป็น https://<project>.vercel.app
-      - key: CORS_ORIGIN
-        value: https://botdash.vercel.app
-
       - key: PREFIX
         value: "!"
       - key: STATUS
@@ -29,24 +29,3 @@ services:
         value: Watching the dashboard
       - key: OWNERS
         sync: false
-      - key: DEPLOY_COMMANDS
-        value: "true"
-      # ใส่ Guild ID เพื่อให้คำสั่ง slash ขึ้นทันทีแทนรอถึง 1 ชั่วโมง (global)
-      - key: GUILD_ID
-        sync: false
-
-  # ─── Dashboard (ทางเลืก — ถ้าไม่อยาก deploy แยกบน Vercel) ──────
-  - type: web
-    name: botdash-dashboard
-    runtime: static
-    rootDir: dashboard
-    buildCommand: npm ci && npm run build
-    staticPublishPath: ./dist
-    region: singapore
-    autoDeploy: true
-    envVars:
-      - key: VITE_API_URL
-        # URL ของบอท — ชื่อ service ถูกตั้งไว้ข้างบนแล้ว ตัวนี้เลยเป็นค่า default ที่ถูก
-        # ถ้าตั้งชื่อ service ต่างจากนี้ ต้องแก้ให้ตรงกัน
-        value: https://botdash-bot.onrender.com
-

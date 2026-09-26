@@ -148,9 +148,9 @@ app.get('/api/logs', logStream)
 // PaaS (Render/Railway/Fly) จะ inject PORT, ตอน dev ใช้ API_PORT
 const PORT = Number(process.env.PORT || process.env.API_PORT || 3001)
 
-// Root — ใช้เป็น health check ของ PaaS
-app.get('/', (_req, res) => {
-  res.json({ status: 'ok', service: 'botdash-bot', ready: client.isReady() })
+// Liveness probe — cheap, does not touch the bot
+app.get('/healthz', (_req, res) => {
+  res.json({ status: 'ok', service: 'botdash', ready: client.isReady() })
 })
 
 // Health check
@@ -540,8 +540,37 @@ app.post(
   }),
 )
 
+// ─── Dashboard (static) ───────────────────────────────────────
+// One service: this process serves both the REST API and the built React app.
+// Same origin means no CORS and no VITE_API_URL to configure.
+const DASHBOARD_DIST = process.env.DASHBOARD_DIST
+  ? join(process.env.DASHBOARD_DIST)
+  : join(__dirname, '..', '..', 'dashboard', 'dist')
+
+const hasDashboard = existsSync(join(DASHBOARD_DIST, 'index.html'))
+
+if (hasDashboard) {
+  app.use(express.static(DASHBOARD_DIST, { index: false, maxAge: '1h' }))
+
+  // SPA fallback — React Router owns every non-API path
+  app.get(/^\/(?!api\/).*/, (_req, res) => {
+    res.sendFile(join(DASHBOARD_DIST, 'index.html'))
+  })
+
+  logger.info(`เสิร์ฟ dashboard จาก ${DASHBOARD_DIST}`)
+} else {
+  app.get('/', (_req, res) => {
+    res.json({
+      status: 'ok',
+      service: 'botdash',
+      ready: client.isReady(),
+      dashboard: 'ยังไม่ได้ build — รัน: cd dashboard && npm run build',
+    })
+  })
+  logger.warn(`ไม่พบ dashboard build ที่ ${DASHBOARD_DIST} — เสิร์ฟเฉพาะ API`)
+}
 const server = app.listen(PORT, '0.0.0.0', () => {
-  logger.info(`API รันที่ http://localhost:${PORT}`)
+  logger.info(`รันที่ http://localhost:${PORT}`)
 })
 
 // ─── Login ────────────────────────────────────────────────────

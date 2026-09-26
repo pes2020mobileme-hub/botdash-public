@@ -1,16 +1,23 @@
+# Runtime image only ships bot/ and the built dashboard, so nothing here
+# should be sent to the daemon.
 .git
 .gitignore
 node_modules
 **/node_modules
 **/dist
 **/build
+.vercel
+
 .env
 .env.local
 .env.*.local
 *.log
+
+# the dashboard is built inside the image, never copied from the host
+dashboard
+
 README.md
 render.yaml
 railway.json
 fly.toml
-dashboard
-.vercel
+.dockerignore

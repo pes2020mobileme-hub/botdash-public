@@ -68,6 +68,25 @@ export const api = {
   config: () => request('/api/config'),
   commands: () => request('/api/commands'),
   deployCommands: () => request('/api/commands/deploy', { method: 'POST' }),
+
+  structure: (guildId) => request(`/api/guilds/${guildId}/structure`),
+  createChannel: (guildId, body) => request(`/api/guilds/${guildId}/channels`, { method: 'POST', body }),
+  createRole: (guildId, body) => request(`/api/guilds/${guildId}/roles`, { method: 'POST', body }),
+  deleteChannels: (guildId, ids) =>
+    request(`/api/guilds/${guildId}/channels/delete`, { method: 'POST', body: { ids }, timeout: 120000 }),
+  deleteRoles: (guildId, ids) =>
+    request(`/api/guilds/${guildId}/roles/delete`, { method: 'POST', body: { ids }, timeout: 120000 }),
+  applyTemplate: (guildId, templateId) =>
+    request(`/api/guilds/${guildId}/apply`, {
+      method: 'POST',
+      body: { template_id: templateId },
+      timeout: 300000,
+    }),
+
+  templates: () => request('/api/templates'),
+  saveConfig: (patch) => request('/api/config', { method: 'POST', body: patch }),
+  restartBot: () => request('/api/bot/restart', { method: 'POST', timeout: 60000 }),
+  leaveAll: () => request('/api/bot/leave-all', { method: 'POST', body: { confirm: 'LEAVE_ALL' }, timeout: 120000 }),
 }
 
 /** Verify a candidate token before storing it. */

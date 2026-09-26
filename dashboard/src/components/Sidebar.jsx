@@ -1,11 +1,12 @@
 import { NavLink } from 'react-router-dom'
-import { LayoutDashboard, Server, Settings, Bot, LogOut } from 'lucide-react'
+import { LayoutDashboard, Server, Settings, Bot, LogOut, Hammer } from 'lucide-react'
 import { api } from '../lib/api'
 import { useApi } from '../lib/useApi'
 
 const navItems = [
   { to: '/', icon: LayoutDashboard, label: 'Dashboard' },
   { to: '/servers', icon: Server, label: 'Servers' },
+  { to: '/builder', icon: Hammer, label: 'Builder' },
   { to: '/settings', icon: Settings, label: 'Settings' },
 ]
 
