@@ -11,34 +11,32 @@ export default function Dashboard() {
   if (stats.error) return <ErrorState error={stats.error} onRetry={stats.reload} />
 
   const s = stats.data
+  const dash = (v) => (v == null ? '—' : v)
+
   const cards = [
     {
       title: 'Total Servers',
-      value: s ? s.servers.toLocaleString() : '—',
+      value: dash(s && s.servers.toLocaleString()),
       icon: Server,
-      change: health.data?.bot ?? 'กำลังโหลด...',
-      changeType: 'neutral',
+      change: health.data?.bot ?? (health.loading ? 'กำลังโหลด...' : 'บอทออฟไลน์'),
     },
     {
       title: 'Total Members',
-      value: s ? s.members.toLocaleString() : '—',
+      value: dash(s && s.members.toLocaleString()),
       icon: Users,
       change: s ? `${s.channels.toLocaleString()} channels` : '',
-      changeType: 'neutral',
     },
     {
       title: 'WebSocket Ping',
-      value: s?.ping != null ? `${s.ping}ms` : '—',
+      value: dash(s?.ping != null ? `${s.ping}ms` : null),
       icon: Activity,
-      change: s ? 'Gateway heartbeat' : '',
-      changeType: 'neutral',
+      change: 'Gateway heartbeat',
     },
     {
       title: 'Uptime',
-      value: s ? formatUptime(s.uptime) : '—',
+      value: dash(s && formatUptime(s.uptime)),
       icon: Activity,
       change: 'Since process start',
-      changeType: 'neutral',
     },
   ]
 
@@ -57,55 +55,43 @@ export default function Dashboard() {
         ))}
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24 }}>
-        <div className="card">
-          <h3 style={{ marginBottom: 16, fontSize: '1.1rem' }}>Bot Status</h3>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-            {health.loading && <div style={{ color: 'var(--text-muted)' }}>กำลังโหลด...</div>}
+      <div className="split">
+        <div className="card card-hover">
+          <h3 className="card-title">Bot Status</h3>
+          <div className="kv-list">
+            {health.loading && <div className="skeleton" style={{ height: 22 }} />}
             {health.data && (
               <>
                 {[
                   ['Bot', health.data.bot],
-                  ['Online', health.data.ready ? 'พร้อมใช้งาน' : 'กำลังรอเชื่อมต่อ'],
+                  ['State', health.data.ready ? 'พร้อมใช้งาน' : 'กำลังรอเชื่อมต่อ'],
                   ['Servers', String(health.data.guilds)],
                   ['Uptime', formatUptime(health.data.uptime)],
                   ['Ping', health.data.ping != null ? `${health.data.ping}ms` : 'n/a'],
-                ].map(([label, value]) => (
-                  <div
-                    key={label}
-                    style={{
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      alignItems: 'center',
-                      padding: '10px 0',
-                      borderBottom: '1px solid var(--border)',
-                    }}
-                  >
-                    <span style={{ color: 'var(--text-secondary)' }}>{label}</span>
-                    <span style={{ fontWeight: 500 }}>{value}</span>
+                ].map(([k, v]) => (
+                  <div className="kv-row" key={k}>
+                    <span className="kv-key">{k}</span>
+                    <span className="kv-val">{v}</span>
                   </div>
                 ))}
                 {health.data.inviteUrl && (
                   <a
-                    className="btn btn-primary"
+                    className="btn btn-primary btn-block"
                     href={health.data.inviteUrl}
                     target="_blank"
                     rel="noopener noreferrer"
-                    style={{ textAlign: 'center', textDecoration: 'none', marginTop: 4 }}
                   >
                     ➕ เชิญบอทเข้าเซิร์ฟเวอร์
                   </a>
                 )}
               </>
             )}
-            {health.error && (
-              <div style={{ color: 'var(--danger)', fontSize: '0.9rem' }}>{health.error.message}</div>
-            )}
+            {health.error && <div className="badge badge-danger">{health.error.message}</div>}
           </div>
         </div>
 
-        <div className="card">
-          <h3 style={{ marginBottom: 16, fontSize: '1.1rem' }}>Servers (Top 5 สมาชิกเยอะสุด)</h3>
+        <div className="card card-hover">
+          <h3 className="card-title">Servers — Top 5 สมาชิกเยอะสุด</h3>
           <TopServers />
         </div>
       </div>
@@ -116,44 +102,36 @@ export default function Dashboard() {
 function TopServers() {
   const { data, error, loading } = useApi(() => api.servers(), [], 30000)
 
-  if (loading) return <div style={{ color: 'var(--text-muted)' }}>กำลังโหลด...</div>
-  if (error) return <div style={{ color: 'var(--danger)', fontSize: '0.9rem' }}>{error.message}</div>
-  if (!data?.length) return <div style={{ color: 'var(--text-muted)' }}>บอทยังไม่ได้อยู่ในเซิร์ฟเวอร์ใด</div>
+  if (loading) {
+    return (
+      <div className="kv-list">
+        {[0, 1, 2].map((i) => (
+          <div className="skeleton" key={i} style={{ height: 30, marginBottom: 12 }} />
+        ))}
+      </div>
+    )
+  }
+  if (error) return <div className="badge badge-danger">{error.message}</div>
+  if (!data?.length) return <div className="empty">บอทยังไม่ได้อยู่ในเซิร์ฟเวอร์ใด</div>
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+    <div>
       {data.slice(0, 5).map((g) => (
-        <div
-          key={g.id}
-          style={{
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-            padding: '10px 0',
-            borderBottom: '1px solid var(--border)',
-          }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+        <div className="server-row" key={g.id}>
+          <div className="server-id">
             {g.icon ? (
-              <img src={g.icon} alt="" width={28} height={28} style={{ borderRadius: 8 }} />
+              <img className="server-icon" src={g.icon} alt="" />
             ) : (
-              <div
-                style={{
-                  width: 28,
-                  height: 28,
-                  borderRadius: 8,
-                  background: 'var(--bg-secondary)',
-                }}
-              />
+              <div className="server-icon-fallback" />
             )}
-            <span style={{ fontWeight: 500 }}>{g.name}</span>
+            <span className="server-name">{g.name}</span>
           </div>
-          <div style={{ display: 'flex', gap: 14, color: 'var(--text-secondary)', fontSize: '0.85rem' }}>
-            <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-              <Users size={13} /> {g.members.toLocaleString()}
+          <div className="server-metrics">
+            <span>
+              <Users size={12} /> {g.members.toLocaleString()}
             </span>
-            <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-              <Hash size={13} /> {g.channels}
+            <span>
+              <Hash size={12} /> {g.channels}
             </span>
           </div>
         </div>

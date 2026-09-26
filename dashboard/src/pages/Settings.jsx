@@ -28,9 +28,9 @@ export default function Settings() {
       </div>
 
       <div style={{ maxWidth: 560 }}>
-        <div className="card" style={{ marginBottom: 24 }}>
-          <h3 style={{ marginBottom: 8, fontSize: '1.1rem' }}>Bot Configuration</h3>
-          <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginBottom: 20 }}>
+        <div className="card" style={{ marginBottom: 22 }}>
+          <h3 className="card-title">Bot Configuration</h3>
+          <p className="form-hint">
             ค่าเหล่านี้อ่านจากไฟล์ <code>.env</code> ของบอท — ต้อง restart บอทถึงจะมีผล
             ปุ่มบันทึกยังไม่ได้เชื่อมกับ API
           </p>
@@ -67,28 +67,24 @@ export default function Settings() {
             />
           </div>
 
-          <div style={{ marginTop: 8, display: 'flex', gap: 12, alignItems: 'center' }}>
+          <div className="form-actions">
             <button className="btn btn-primary" disabled title="ยังไม่ได้ทำ endpoint สำหรับบันทึกค่า">
               Save Changes
             </button>
-            {loading && <span style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>กำลังโหลด...</span>}
+            {loading && <span className="muted" style={{ fontSize: '0.85rem' }}>กำลังโหลด...</span>}
           </div>
         </div>
 
         <div className="card">
-          <h3 style={{ marginBottom: 12, fontSize: '1.1rem' }}>Danger Zone</h3>
-          <p style={{ color: 'var(--text-secondary)', marginBottom: 16, fontSize: '0.9rem' }}>
+          <h3 className="card-title">Danger Zone</h3>
+          <p className="form-hint" style={{ marginBottom: 16 }}>
             Restart the bot or leave all servers. These actions cannot be undone easily.
           </p>
-          <div style={{ display: 'flex', gap: 12 }}>
+          <div className="row">
             <button className="btn btn-ghost" disabled>
               Restart Bot
             </button>
-            <button
-              className="btn"
-              style={{ background: 'var(--danger)', color: 'white' }}
-              disabled
-            >
+            <button className="btn btn-danger" disabled>
               Leave All Servers
             </button>
           </div>

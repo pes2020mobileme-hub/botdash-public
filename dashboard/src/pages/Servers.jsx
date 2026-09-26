@@ -19,13 +19,7 @@ export default function Servers() {
           <p>Manage servers your bot is in</p>
         </div>
         {health.data?.inviteUrl && (
-          <a
-            className="btn btn-primary"
-            href={health.data.inviteUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            style={{ textDecoration: 'none' }}
-          >
+          <a className="btn btn-primary" href={health.data.inviteUrl} target="_blank" rel="noopener noreferrer">
             Invite Bot
           </a>
         )}
@@ -45,56 +39,54 @@ export default function Servers() {
           <tbody>
             {loading && (
               <tr>
-                <td colSpan={5} style={{ color: 'var(--text-muted)' }}>
+                <td colSpan={5} className="muted">
                   กำลังโหลด...
                 </td>
               </tr>
             )}
+
             {!loading && servers.length === 0 && (
               <tr>
-                <td colSpan={5} style={{ color: 'var(--text-muted)' }}>
+                <td colSpan={5} className="muted">
                   บอทยังไม่ได้อยู่ในเซิร์ฟเวอร์ใด
                 </td>
               </tr>
             )}
+
             {servers.map((s) => (
               <tr key={s.id}>
                 <td>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                  <div className="server-cell">
                     {s.icon ? (
-                      <img src={s.icon} alt="" width={40} height={40} style={{ borderRadius: 10 }} />
+                      <img src={s.icon} alt="" />
                     ) : (
-                      <div
-                        style={{
-                          width: 40,
-                          height: 40,
-                          borderRadius: 10,
-                          background: 'var(--bg-secondary)',
-                        }}
-                      />
+                      <div className="fallback" />
                     )}
                     <span style={{ fontWeight: 600 }}>{s.name}</span>
                   </div>
                 </td>
                 <td>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <Users size={14} color="var(--text-muted)" />
-                    {s.members.toLocaleString()}
+                  <div className="server-metrics">
+                    <span>
+                      <Users size={13} /> {s.members.toLocaleString()}
+                    </span>
                   </div>
                 </td>
                 <td>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <Hash size={14} color="var(--text-muted)" />
-                    {s.channels}
+                  <div className="server-metrics">
+                    <span>
+                      <Hash size={13} /> {s.channels}
+                    </span>
                   </div>
                 </td>
                 <td>
-                  <code style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>{s.id}</code>
+                  <code className="muted" style={{ fontSize: '0.78rem' }}>
+                    {s.id}
+                  </code>
                 </td>
                 <td>
                   <a
-                    className="btn btn-ghost"
-                    style={{ padding: '6px 12px', fontSize: '0.8rem', textDecoration: 'none' }}
+                    className="btn btn-ghost btn-sm"
                     href={`https://discord.com/channels/${s.id}`}
                     target="_blank"
                     rel="noopener noreferrer"
